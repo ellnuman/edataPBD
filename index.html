@@ -299,6 +299,7 @@
                     <td class="py-2 px-3 font-medium text-sm">${studentName}</td>`;
                 subject.skills.forEach(skill => {
                     const tpValue = studentRecords && studentRecords.skills[skill] ? studentRecords.skills[skill].tp : "";
+                    const catatanValue = studentRecords && studentRecords.skills[skill] ? studentRecords.skills[skill].catatan : "";
                     tableHTML += `<td class="py-1 px-2 text-center">
                         <select class="tp-select w-full p-1 border rounded-md text-sm" data-skill="${skill}">
                             <option value="" ${tpValue === "" ? 'selected' : ''}>-</option>
@@ -309,6 +310,8 @@
                             <option ${tpValue === 'TP5' ? 'selected' : ''}>TP5</option>
                             <option ${tpValue === 'TP6' ? 'selected' : ''}>TP6</option>
                         </select>
+                        <input type="text" class="catatan-input w-full p-1 border rounded-md text-xs mt-1" 
+                               data-skill-catatan="${skill}" placeholder="Catatan SP..." value="${catatanValue.replace(/"/g, '&quot;')}">
                     </td>`;
                 });
                 tableHTML += `</tr>`;
@@ -394,9 +397,15 @@
                     records.forEach(record => {
                         const d = new Date(record.date);
                         const formattedDate = `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
-                        studentHTML += `<tr class="border-t"><td class="py-2 px-2 font-medium">${formattedDate}</td>`;
+                        studentHTML += `<tr class="border-t"><td class="py-2 px-2 font-medium align-top">${formattedDate}</td>`;
                         subject.skills.forEach(skill => {
-                            studentHTML += `<td class="py-2 px-2 text-center">${record.skills[skill] ? record.skills[skill].tp : '-'}</td>`;
+                            const skillData = record.skills[skill];
+                            const tp = skillData ? skillData.tp : '-';
+                            const catatan = skillData && skillData.catatan ? skillData.catatan : '';
+                            studentHTML += `<td class="py-2 px-2 text-center align-top">
+                                ${tp}
+                                <p class="text-xs text-gray-500 whitespace-pre-wrap">${catatan}</p>
+                            </td>`;
                         });
                         studentHTML += `</tr>`;
                     });
@@ -451,8 +460,13 @@
                 const studentRecord = { teacher: appState.selectedTeacher, skills: {} };
                 let hasStudentData = false;
                 row.querySelectorAll('select.tp-select').forEach(select => {
-                    if (select.value) {
-                        studentRecord.skills[select.dataset.skill] = { tp: select.value };
+                    const skill = select.dataset.skill;
+                    const tp = select.value;
+                    const catatanInput = row.querySelector(`input[data-skill-catatan="${skill}"]`);
+                    const catatan = catatanInput ? catatanInput.value : '';
+
+                    if (tp || catatan) {
+                        studentRecord.skills[skill] = { tp, catatan };
                         hasStudentData = true;
                     }
                 });
@@ -471,7 +485,7 @@
 
             const docRef = doc(db, `artifacts/${appId}/public/data/daily_records/${className}/${subjectName}`, date);
             const saveOperation = setDoc(docRef, dailyRecordData);
-            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 20000));
+            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 45000)); 
 
             try {
                 await Promise.race([saveOperation, timeoutPromise]);
@@ -494,17 +508,29 @@
             if (!appState.historyDataCache) { alert("Sila paparkan sejarah terlebih dahulu."); return; }
             const { className, subjectName, subject, data } = appState.historyDataCache;
             let csvContent = "data:text/csv;charset=utf-8,";
-            const headers = ["Nama Murid", "Tarikh", ...subject.skills];
+            
+            const headers = ["Nama Murid", "Tarikh"];
+            subject.skills.forEach(skill => {
+                headers.push(skill);
+                headers.push(`${skill} Catatan`);
+            });
             csvContent += headers.join(",") + "\r\n";
+
             data.forEach(({ studentName, records }) => {
                 records.forEach(record => {
                     const date = new Date(record.date);
                     const formattedDate = `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()}`;
                     let row = [`"${studentName}"`, `"${formattedDate}"`];
-                    subject.skills.forEach(skill => row.push(`"${record.skills[skill] ? record.skills[skill].tp : ''}"`));
+                    subject.skills.forEach(skill => {
+                        const skillData = record.skills[skill];
+                        row.push(`"${skillData ? skillData.tp : ''}"`);
+                        const catatan = skillData && skillData.catatan ? skillData.catatan.replace(/"/g, '""') : '';
+                        row.push(`"${catatan}"`);
+                    });
                     csvContent += row.join(",") + "\r\n";
                 });
             });
+
             const encodedUri = encodeURI(csvContent);
             const link = document.createElement("a");
             link.setAttribute("href", encodedUri);
@@ -534,12 +560,17 @@
                     const date = new Date(record.date);
                     const formattedDate = `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()}`;
                     const row = [formattedDate];
-                    subject.skills.forEach(skill => row.push(record.skills[skill] ? record.skills[skill].tp : '-'));
+                    subject.skills.forEach(skill => {
+                        const skillData = record.skills[skill];
+                        const tp = skillData ? skillData.tp : '-';
+                        const catatan = skillData && skillData.catatan ? skillData.catatan : '';
+                        row.push(`${tp}\n${catatan}`);
+                    });
                     return row;
                 });
                 doc.autoTable({
                     head: tableHead, body: tableBody, startY: currentY, theme: 'grid',
-                    headStyles: { fillColor: [22, 160, 133] }, styles: { fontSize: 8 },
+                    headStyles: { fillColor: [22, 160, 133] }, styles: { fontSize: 8, cellPadding: 2 },
                 });
                 currentY = doc.autoTable.previous.finalY + 10;
             });
