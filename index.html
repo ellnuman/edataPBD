@@ -485,18 +485,15 @@
 
             const docRef = doc(db, `artifacts/${appId}/public/data/daily_records/${className}/${subjectName}`, date);
             const saveOperation = setDoc(docRef, dailyRecordData);
-            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 45000)); 
+            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 20000)); 
 
             try {
                 await Promise.race([saveOperation, timeoutPromise]);
                 showToast("✔️ Rekod Berjaya Disimpan!");
             } catch (error) {
                 console.error("RALAT KETIKA MENYIMPAN:", error);
-                let errorMessage = "Gagal menyimpan rekod. Sila cuba lagi.";
-                if (error.message === "Timeout") {
-                    errorMessage = "Operasi tamat masa. Periksa sambungan internet anda.";
-                }
-                showToast(`❌ ${errorMessage}`, true);
+                // Atas permintaan pengguna, notifikasi ralat tidak dipaparkan.
+                // Hanya log ke konsol untuk tujuan debug.
             } finally {
                 saveButton.disabled = false;
                 saveButton.innerHTML = "💾 Simpan Semua Rekod";
